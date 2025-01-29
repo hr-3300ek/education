@@ -1,0 +1,12 @@
+dockerfile-lint:
+  stage: pre-build
+  tags: 
+    - all
+
+  image: hadolint/hadolint:latest-debian
+  script:
+    - hadolint -c $CI_PROJECT_DIR/configure-files/hadolint/hadolint.yml govwa/Dockerfile > $CI_PROJECT_DIR/hadolint_govwa.txt || echo
+
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/hadolint_govwa.txt

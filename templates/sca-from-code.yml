@@ -1,7 +1,7 @@
 .dt-upload:
   stage: pre-build
   tags: 
-    - vm
+    - all
   image: docker:stable
   services:
     - name: docker:dind
@@ -14,52 +14,82 @@ trivy-generate-sbom-from-code:
     name: bitnami/trivy
     entrypoint: [""] 
   tags: 
-    - vm 
+    - all 
   script:
     - trivy repository --format cyclonedx --output $CI_PROJECT_DIR/trivy_sbom_generate_code.json $CI_PROJECT_DIR/govwa/
   artifacts:
     paths:
       - $CI_PROJECT_DIR/trivy_sbom_generate_code.json
 
-import-sbom-to-dt-scan:
-  stage: pre-build
-  tags: 
-    - vm
-  extends: .dt-upload
-  needs: ["trivy-generate-sbom-from-code"]
-  dependencies:
-    - trivy-generate-sbom-from-code
-  script:
-    - |    
-      curl -v -X "POST" "$DT_URL/api/v1/bom" \
-        -H 'Content-Type: multipart/form-data' \
-        -H "X-API-Key: $DT_API_KEY" \
-        -F "autoCreate=true" \
-        -F "projectName=govwa" \
-        -F "projectVersion=$CI_COMMIT_BRANCH" \
-        -F bom=@trivy_sbom_generate_code.json
-
-osv_scanner:
+cdxgen:
   stage: pre-build
   tags:
-    - vm
-  image: 
-    name: homebrew/brew
-    entrypoint: [""] 
-  needs: ["trivy-generate-sbom-from-code"]
-  allow_failure: true
+    - all
+  image: ubuntu:plucky-20241213
   before_script:
-    - brew install osv-scanner
+    - apt update -qq && apt install -y npm
+    - npm install -g @cyclonedx/cdxgen
+    - cd ./govwa
   script:
-    - osv-scanner scan --sbom $CI_PROJECT_DIR/trivy_sbom_generate_code.json --json --output $CI_PROJECT_DIR/osv_scanner.json || true
+    - cdxgen --scanners vuln -r -o $CI_PROJECT_DIR/cdxgen.json
+    - cd ../
   artifacts:
     paths:
-      - $CI_PROJECT_DIR/osv_scanner.json
+      - $CI_PROJECT_DIR/cdxgen.json
+
+cyclonedx-cli:
+  stage: pre-build
+  needs: ["cdxgen", "trivy-generate-sbom-from-code"]
+  image:
+    name: cyclonedx/cyclonedx-cli:latest
+    entrypoint: [""]
+  tags:
+    - all
+  script:
+    - /cyclonedx merge --input-files $CI_PROJECT_DIR/trivy_sbom_generate_code.json $CI_PROJECT_DIR/cdxgen.json --output-file $CI_PROJECT_DIR/merged_sbom.json
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/merged_sbom.json
+
+# import-sbom-to-dt-scan:
+#   stage: pre-build
+#   tags: 
+#     - all
+#   extends: .dt-upload
+#   needs: ["trivy-generate-sbom-from-code"]
+#   dependencies:
+#     - trivy-generate-sbom-from-code
+#   script:
+#     - |    
+#       curl -v -X "POST" "$DT_URL/api/v1/bom" \
+#         -H 'Content-Type: multipart/form-data' \
+#         -H "X-API-Key: $DT_API_KEY" \
+#         -F "autoCreate=true" \
+#         -F "projectName=govwa" \
+#         -F "projectVersion=$CI_COMMIT_BRANCH" \
+#         -F bom=@trivy_sbom_generate_code.json
+
+# osv_scanner:
+#   stage: pre-build
+#   tags:
+#     - all
+#   image: 
+#     name: homebrew/brew
+#     entrypoint: [""] 
+#   needs: ["trivy-generate-sbom-from-code"]
+#   allow_failure: true
+#   before_script:
+#     - brew install osv-scanner
+#   script:
+#     - osv-scanner scan --sbom $CI_PROJECT_DIR/trivy_sbom_generate_code.json --json --output $CI_PROJECT_DIR/osv_scanner.json || true
+#   artifacts:
+#     paths:
+#       - $CI_PROJECT_DIR/osv_scanner.json
 
 # dependency_check:
 #   stage: pre-build
 #   tags:
-#     - vm
+#     - all
 #   image:
 #     name: owasp/dependency-check
 #     entrypoint: [""]
@@ -70,16 +100,16 @@ osv_scanner:
 #     paths:
 #       - "govwa.html"
 
-trivy-sca:
-  stage: pre-build
-  image: 
-    name: bitnami/trivy
-    entrypoint: [""] 
-  needs: ["trivy-generate-sbom-from-code"]
-  tags: 
-    - vm 
-  script:
-    - trivy sbom --output $CI_PROJECT_DIR/trivy_software_composition_analysis.json $CI_PROJECT_DIR/trivy_sbom_generate_code.json
-  artifacts:
-    paths:
-      - $CI_PROJECT_DIR/trivy_software_composition_analysis.json
+# trivy-sca:
+#   stage: pre-build
+#   image: 
+#     name: bitnami/trivy
+#     entrypoint: [""] 
+#   needs: ["trivy-generate-sbom-from-code"]
+#   tags: 
+#     - all 
+#   script:
+#     - trivy sbom --output $CI_PROJECT_DIR/trivy_software_composition_analysis.json $CI_PROJECT_DIR/trivy_sbom_generate_code.json
+#   artifacts:
+#     paths:
+#       - $CI_PROJECT_DIR/trivy_software_composition_analysis.json

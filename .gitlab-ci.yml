@@ -1,10 +1,10 @@
 include:
   - 'templates/secret-find.yml'
-  - 'templates/sast-scan.yml'
+  # - 'templates/sast-scan.yml'
   - 'templates/sca-from-code.yml'
   - 'templates/sca-from-images.yml'
   - 'templates/dast-scan.yml'
-  #- 'templates/dockerfile-check.yml'
+  - 'templates/dockerfile-check.yml'
   - 'templates/build.yml'
   - 'templates/deploy.yml'
 

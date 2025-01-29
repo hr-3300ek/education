@@ -1,7 +1,10 @@
+variables:
+  TARGET_REPOSITORY: 192.168.1.141:5000
+
 # build:
 #   stage: build
 #   tags:
-#     - vm
+#     - all
 #   image:
 #     name: gcr.io/kaniko-project/executor:debug
 #     entrypoint: [""]
@@ -24,10 +27,19 @@
 #       exists:
 #         - Dockerfile 
 
-
-
 build:
   stage: build
+  # image: docker:latest
+  # services:
+  #   - name: docker:dind
+  #     command: ["--tls=false", "--insecure-registry=192.168.1.141:5000"]
+  tags:
+    - all
   script:
-    - |-
-      echo "Done build!"
+    - docker build -t ${TARGET_REPOSITORY}/govwa:latest -f govwa/Dockerfile govwa
+    - docker push ${TARGET_REPOSITORY}/govwa:latest
+    - mkdir ${CI_PROJECT_DIR}/docker
+    - docker save ${TARGET_REPOSITORY}/govwa:latest >| $CI_PROJECT_DIR/docker/image.tar
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/docker/image.tar

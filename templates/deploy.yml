@@ -1,5 +1,7 @@
 deploy:
   stage: deploy
+  tags:
+    - all
   script:
     - |-
       echo "Done deploy!"

@@ -1,15 +1,18 @@
+variables:
+  TARGET_REPOSITORY: 192.168.1.141:5000
+
 trivy-generate-bom-from-image:
   stage: post-build
   image: 
     name: bitnami/trivy
     entrypoint: [""] 
   tags: 
-    - vm 
+    - all 
   script:
-    - trivy image --format cyclonedx --output trivy_bom_generate_image.json bkimminich/juice-shop
+    - trivy image --scanners vuln $TARGET_REPOSITORY/govwa:latest --output trivy_bom_govwa.json
   artifacts:
     paths:
-      - $CI_PROJECT_DIR/trivy_bom_generate_image.json
+      - $CI_PROJECT_DIR/trivy_bom_govwa.json
 
 # docker-scout-cli:
 #   stage: post-build
@@ -31,3 +34,30 @@ trivy-generate-bom-from-image:
 #   artifacts:
 #     paths:
 #       - $CI_PROJECT_DIR/docker_bom_generate_image.json
+
+syft-bom-from-image:
+  stage: post-build
+  image:
+    name: anchore/syft:v1.19.0-debug
+    entrypoint: [""]
+  tags:
+    - all 
+  script:
+    - /syft $TARGET_REPOSITORY/govwa:latest -o json=$CI_PROJECT_DIR/syft_sbom_govwa.json
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/syft_sbom_govwa.json
+
+grype_report:
+  stage: post-build
+  image: 
+    name: anchore/grype:v0.87.0-debug
+    entrypoint: [""]
+  needs: ["syft-bom-from-image"]
+  tags: 
+    - all 
+  script:
+    - /grype sbom:$CI_PROJECT_DIR/syft_sbom_govwa.json -o json > $CI_PROJECT_DIR/grype_report.json
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/grype_report.json
